@@ -1,0 +1,16 @@
+node_modules/
+.next/
+out/
+build/
+coverage/
+.env*
+!.env.example
+*.tsbuildinfo
+next-env.d.ts
+.DS_Store
+*.log
+.vercel/
+/tmp/
+# Los documentos académicos se conservan localmente, fuera de los commits.
+*.docx
+*.pdf
