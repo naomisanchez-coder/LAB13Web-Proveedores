@@ -8,12 +8,15 @@ bloqueo temporal y la configuración de GitHub OAuth. También rediseñé las p�
 con una interfaz clara, superficies blancas y acentos violeta e índigo.
 
 Trabajé directamente en la raíz del repositorio y conservé los cinco commits de la
-primera parte. La guía que revisé contiene 13 páginas; desarrollé los requisitos de la
-TAREA que aparecen después de la ejecución inicial de la aplicación.
+primera parte. Mantuve la arquitectura y amplié los métodos de acceso sin reemplazar
+la autenticación existente.
 
 **Estado de verificación:** comprobé el código, el build y las respuestas HTTP locales.
-No tengo configurada una conexión PostgreSQL ni las credenciales OAuth de GitHub en
-este entorno. Por ello, todavía no considero validado de extremo a extremo el registro,
+Configuré las conexiones pooled y directa de Neon y comprobé consultas reales por ambas,
+sin mostrar sus valores. Ambas corresponden al mismo endpoint, base y rol y utilizan TLS.
+Todavía debo confirmar administrativamente el proyecto Neon y disponer de una rama aislada
+para migrar y ejecutar las pruebas de integración. No tengo configuradas las credenciales
+OAuth de GitHub. Por ello, todavía no considero validados de extremo a extremo el registro,
 el acceso por credenciales, la persistencia del bloqueo ni GitHub OAuth. Google funcionaba
 en la comprobación manual de la primera parte; debo repetir ese flujo después de esta ampliación.
 
@@ -187,8 +190,11 @@ en PostgreSQL, no en memoria ni en el sistema de archivos.
 
 ### Crear y migrar mi base
 
-No creé servicios ni recursos de pago. Primero debo obtener una base PostgreSQL propia y
-completar sus dos URLs, siguiendo las instrucciones de conexión y TLS del proveedor.
+No creé servicios ni recursos de pago. Ya configuré Neon en `.env.local` y comprobé que
+`DATABASE_URL` utiliza pooling y `DIRECT_URL` una conexión directa al mismo destino.
+Las consultas reales respondieron correctamente; el esquema público estaba vacío.
+No deduzco el nombre del proyecto a partir de la URL: debo confirmar que ese endpoint
+pertenezca a `LAB13-Web-Proveedores` mediante acceso administrativo a Neon.
 En Vercel uso pooling para la ejecución y conexión directa para migraciones. El pool debe
 soportar transacciones y bloqueos advisory de transacción de PostgreSQL.
 
@@ -199,8 +205,10 @@ npm run db:validate
 npm run db:migrate
 ```
 
-`db:migrate` ejecuta `prisma migrate deploy`, sin reset ni borrado de datos. No lo ejecuté contra
-una base real porque falta la configuración. Generé el SQL desde el esquema, sin conexión.
+`db:migrate` ejecuta `prisma migrate deploy`, sin reset ni borrado de datos. Revisé la migración:
+solo crea tablas, índices y restricciones; no contiene eliminación de datos. No la ejecuté
+aún porque falta confirmar administrativamente el proyecto de destino. No inserté usuarios
+ficticios en la base principal.
 Los comandos de generación y validación usan una URL placeholder únicamente cuando falta
 el entorno; no intentan conectarse a ella ni generan usuarios de demostración.
 
@@ -288,13 +296,15 @@ Resultados comprobados el 14 de noviembre de 2026:
 | ESLint | Sin errores ni advertencias |
 | TypeScript | Sin errores |
 | Build Next.js y vercel-build | Correctos, con rutas dinámicas, middleware y generación de Prisma |
-| Esquema y generación de Prisma | Correctos, sin conexión real |
-| HTTP en producción | 24 comprobaciones correctas |
-| HTTP con Turbopack | 24 comprobaciones correctas |
+| Esquema y generación de Prisma | Correctos |
+| Conexiones reales pooled y directa de Neon | SELECT correcto en ambas; mismo destino y TLS |
+| Migraciones y tablas de aplicación | Pendientes de confirmación administrativa del proyecto |
+| HTTP local con la configuración actual | 22 comprobaciones seguras correctas |
 | Revisión de secretos locales en archivos publicables e historia | Sin coincidencias detectadas |
 
 Las comprobaciones HTTP incluyen acceso anónimo, rutas privadas, cookies inválidas y caducadas,
-CSRF, logout, registro inválido y fallos controlados sin PostgreSQL. Para comprobar el renderizado
+CSRF, logout y registro inválido. Las pruebas de fallos sin PostgreSQL se ejecutan de forma
+aislada, sin utilizar la conexión real. No ejecuto registros de prueba sobre la base principal. Para comprobar el renderizado
 de las páginas privadas utilicé JWT efímeros firmados localmente: eso **no acredita** un login OAuth
 ni una autenticación real de usuario de base de datos.
 
@@ -304,7 +314,8 @@ esa revisión sustituida por las pruebas HTTP.
 
 ### Pruebas reales de PostgreSQL pendientes
 
-Para ejecutarlas creo una base **exclusiva de pruebas**, distinta de la aplicación y llamada
+Para ejecutarlas necesito una rama Neon independiente `lab13-auth-test` y una base **exclusiva
+de pruebas**, distinta de la aplicación y llamada
 `lab13_auth_test` (o un nombre que empiece por `lab13` y termine en `_test`). Creo localmente
 `.env.test.local`, que está ignorado, con `TEST_DATABASE_URL` apuntando a su conexión directa.
 
@@ -318,8 +329,8 @@ quinto intento, concurrencia, bloqueo en un proceso nuevo y recuperación. Adela
 únicamente del registro de prueba para evitar esperar quince minutos. Finalmente elimina sus
 propios datos de prueba; no borra tablas ni usuarios ajenos.
 
-Sin esa variable el comando termina con código 2 y explica que no ejecutó las pruebas. No probé
-ni modifiqué ninguna base de producción o de otro laboratorio.
+Sin esa variable el comando termina con código 2 y explica que no ejecutó las pruebas. No ejecuté
+pruebas de escritura ni modifiqué datos de la base principal o de otros laboratorios.
 
 ### Auditoría de dependencias
 
@@ -359,32 +370,14 @@ producción y no despliega. Antes de un despliegue posterior debo:
 No ejecuté un despliegue. La compilación local no demuestra todavía el funcionamiento remoto,
 las conexiones serverless ni la autenticación con proveedores reales tras los cambios.
 
-## 13. Evidencias de funcionamiento
-
-Preparé las siguientes referencias para incorporar mis capturas manualmente. **Todavía no
-existen esos archivos**; no presento imágenes ni resultados inventados.
-
-| Evidencia pendiente | Ruta prevista |
-| --- | --- |
-| Login y métodos de acceso | `docs/evidencias/01-login.png` |
-| Registro y validaciones | `docs/evidencias/02-registro.png` |
-| Dashboard autenticado | `docs/evidencias/03-dashboard.png` |
-| Perfil | `docs/evidencias/04-perfil.png` |
-| Bloqueo y recuperación en pruebas | `docs/evidencias/05-bloqueo.png` |
-| Vista móvil y menú | `docs/evidencias/06-movil.png` |
-
-Evito incluir contraseñas, cookies, tokens, herramientas de red con respuestas sensibles o archivos
-de entorno en las capturas. El repositorio del laboratorio es:
-[LAB13Web-Proveedores](https://github.com/naomisanchez-coder/LAB13Web-Proveedores).
-
-## 14. Organización de Git
+## 13. Organización de Git
 
 Conservé los cinco commits iniciales y organicé la ampliación en cambios progresivos:
 persistencia, registro, credenciales, bloqueo, GitHub, interfaz de autenticación, espacio privado,
 pruebas, una corrección transitiva de seguridad y documentación. Validé cada etapa antes de publicarla en `origin/main`, sin reescribir
 la historia ni utilizar force push. Puedo revisar todos los hashes con `git log --oneline`.
 
-## 15. Conclusiones y aprendizajes
+## 14. Conclusiones y aprendizajes
 
 - Comprendí que una sesión JWT y una cuenta persistente tienen responsabilidades diferentes.
 - Aprendí a validar y normalizar datos antes de guardarlos y a respetar el límite real de bcrypt.
@@ -396,7 +389,7 @@ la historia ni utilizar force push. Puedo revisar todos los hashes con `git log 
 
 ### Documentación que consulté
 
-Además de la guía académica, utilicé las referencias oficiales para resolver compatibilidad:
+Consulté las referencias oficiales para resolver compatibilidad y configuración:
 
 - [NextAuth v4 y Next.js](https://next-auth.js.org/configuration/nextjs).
 - [CredentialsProvider](https://next-auth.js.org/providers/credentials).
