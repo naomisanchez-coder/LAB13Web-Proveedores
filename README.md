@@ -11,14 +11,16 @@ Trabajé directamente en la raíz del repositorio y conservé los cinco commits 
 primera parte. Mantuve la arquitectura y amplié los métodos de acceso sin reemplazar
 la autenticación existente.
 
-**Estado de verificación:** comprobé el código, el build y las respuestas HTTP locales.
-Configuré las conexiones pooled y directa de Neon y comprobé consultas reales por ambas,
-sin mostrar sus valores. Ambas corresponden al mismo endpoint, base y rol y utilizan TLS.
-Todavía debo confirmar administrativamente el proyecto Neon y disponer de una rama aislada
-para migrar y ejecutar las pruebas de integración. No tengo configuradas las credenciales
-OAuth de GitHub. Por ello, todavía no considero validados de extremo a extremo el registro,
-el acceso por credenciales, la persistencia del bloqueo ni GitHub OAuth. Google funcionaba
-en la comprobación manual de la primera parte; debo repetir ese flujo después de esta ampliación.
+**Estado de verificación:** confirmé el proyecto Neon `LAB13-Web-Proveedores`, las conexiones
+pooled y directa y la rama principal `production`. Probé primero la migración en una rama
+independiente y después la apliqué en la base principal, sin borrar datos ni insertar usuarios
+ficticios. Verifiqué las tres tablas y consultas Prisma reales.
+
+En la rama `lab13-auth-test`, base `lab13_auth_test`, comprobé registro, duplicados, bcrypt,
+credenciales, JWT, bloqueo persistente, concurrencia y logout. La suite completa aprobó
+39 pruebas sin omisiones y el flujo HTTP real aprobó diez comprobaciones adicionales.
+Google conserva su configuración; sus flujos interactivos quedan para la comprobación manual.
+GitHub todavía requiere sus credenciales OAuth. No ejecuté un despliegue.
 
 ## 2. Objetivos
 
@@ -55,9 +57,9 @@ Fijé Node 24 en `engines` y mantuve la misma versión de Prisma y su cliente.
 | Funcionalidad | Implementación y comprobación |
 | --- | --- |
 | Google OAuth | Conservé proveedor y variables. Verifiqué su presencia por HTTP; debo repetir el flujo manual tras los cambios. |
-| Registro | Implementé formulario, endpoint, validaciones, bcrypt, respuesta genérica e índice único; falta comprobar la escritura en PostgreSQL. |
-| Credenciales | Implementé consulta real y bcrypt.compare; sin base de datos el acceso se rechaza, nunca se simula. |
-| Bloqueo | Implementé cinco fallos y 15 minutos de bloqueo persistente; probé la política y preparé las pruebas PostgreSQL. |
+| Registro | Comprobé por HTTP el registro persistente, la normalización, el hash bcrypt y la prevención de duplicados en la base aislada. |
+| Credenciales | Comprobé el login real de NextAuth contra Neon pooled, la sesión JWT y el acceso a dashboard y perfil. También verifiqué el rechazo cuando falta la base de datos. |
+| Bloqueo | Verifiqué cinco fallos, quince minutos de bloqueo, persistencia en otro proceso, concurrencia, recuperación y reinicio del contador. |
 | GitHub OAuth | Preparé GitHubProvider, callback y avatar; se habilita únicamente con sus dos variables reales. |
 | Rutas privadas | Conservé middleware y comprobación de sesión en cada página; verifiqué el rechazo sin sesión. |
 | Dashboard y perfil | Mostré datos reales de sesión, método verificable y avatar con alternativa de iniciales. |
@@ -81,7 +83,8 @@ Fijé Node 24 en `engines` y mantuve la misma versión de Prisma y su cliente.
 ├── scripts/
 │   ├── prisma.mjs
 │   ├── test.mjs
-│   ├── smoke-auth.mjs
+│   ├── smoke-auth.mjs / smoke-credentials.mjs
+│   ├── test-database-config.mjs
 │   └── check-secrets.mjs
 ├── src/
 │   ├── middleware.ts
@@ -106,7 +109,7 @@ Fijé Node 24 en `engines` y mantuve la misma versión de Prisma y su cliente.
     ├── validation.test.ts / password.test.ts / lock-policy.test.ts
     ├── request-security.test.ts / registration.test.ts
     ├── session-claims.test.ts / github-config.test.ts / prisma-config.test.ts
-    ├── database.integration.test.ts
+    ├── database.integration.test.ts / test-database-config.test.ts
     ├── helpers/auth-worker.ts
     └── fixtures/prisma.config.mjs
 ```
@@ -134,6 +137,7 @@ Nunca publico ese archivo ni incluyo secretos en capturas o mensajes.
 | NEXTAUTH_SECRET | Secreto aleatorio y estable, exclusivo del entorno |
 | DATABASE_URL | Conexión PostgreSQL con pooling compatible con el proveedor |
 | DIRECT_URL | Conexión directa PostgreSQL para las migraciones |
+| TEST_DATABASE_URL | Solo en .env.test.local: conexión directa de la rama aislada; no se copia a producción |
 | GITHUB_CLIENT_ID | ID de la OAuth App de GitHub |
 | GITHUB_CLIENT_SECRET | Secreto de esa OAuth App |
 
@@ -150,8 +154,8 @@ mi cuenta como usuario de prueba. Utilizo exactamente:
 - Origen JavaScript local: `http://localhost:3000`.
 - Callback local: `http://localhost:3000/api/auth/callback/google`.
 
-Introduzco las credenciales de mi propio cliente en `.env.local`. No reutilizo los valores
-que aparecen en las capturas de la guía. Conservé Google independiente de PostgreSQL para
+Introduzco las credenciales de mi propio cliente en `.env.local`. No reutilizo credenciales
+de ejemplos públicos. Conservé Google independiente de PostgreSQL para
 que la falta de conexión de las cuentas locales no elimine ese método de acceso.
 
 ## 8. Configuración de GitHub OAuth
@@ -190,25 +194,32 @@ en PostgreSQL, no en memoria ni en el sistema de archivos.
 
 ### Crear y migrar mi base
 
-No creé servicios ni recursos de pago. Ya configuré Neon en `.env.local` y comprobé que
-`DATABASE_URL` utiliza pooling y `DIRECT_URL` una conexión directa al mismo destino.
-Las consultas reales respondieron correctamente; el esquema público estaba vacío.
-No deduzco el nombre del proyecto a partir de la URL: debo confirmar que ese endpoint
-pertenezca a `LAB13-Web-Proveedores` mediante acceso administrativo a Neon.
-En Vercel uso pooling para la ejecución y conexión directa para migraciones. El pool debe
-soportar transacciones y bloqueos advisory de transacción de PostgreSQL.
+Conservé el proyecto Neon existente `LAB13-Web-Proveedores` y comprobé administrativamente
+que las URLs locales corresponden a su rama `production`. `DATABASE_URL` usa pooling y
+`DIRECT_URL` una conexión directa al mismo destino; ambas respondieron mediante consultas reales.
+No cambié el plan gratuito ni contraté recursos de pago.
+
+Creé la rama independiente `lab13-auth-test`, con cómputo mínimo y suspensión por inactividad,
+y una base exclusiva llamada `lab13_auth_test`. Guardé su conexión directa únicamente en
+`.env.test.local`, ignorado y con permisos privados. Conservé intacto `.env.local`.
+
+Revisé la migración `202611140001_init_auth`: solo crea tablas, índices y restricciones.
+La apliqué primero en pruebas, ejecuté la integración y después ejecuté `npm run db:migrate`
+en el destino principal confirmado. Verifiqué `users`, `login_attempts`, `request_limits`
+y el historial `_prisma_migrations` en ambos destinos. La migración quedó completa y no
+inserté cuentas de integración en la base principal.
+
+Para mantener el esquema utilizo:
 
 ```bash
 npm run db:generate
 npm run db:validate
-# Solo después de configurar y revisar DATABASE_URL y DIRECT_URL:
+# Siempre reviso el destino antes de aplicar migraciones pendientes:
 npm run db:migrate
 ```
 
-`db:migrate` ejecuta `prisma migrate deploy`, sin reset ni borrado de datos. Revisé la migración:
-solo crea tablas, índices y restricciones; no contiene eliminación de datos. No la ejecuté
-aún porque falta confirmar administrativamente el proyecto de destino. No inserté usuarios
-ficticios en la base principal.
+`db:migrate` utiliza `prisma migrate deploy`; no hace reset ni elimina datos. En ejecución
+serverless mantengo pooling; para migraciones utilizo la conexión directa.
 Los comandos de generación y validación usan una URL placeholder únicamente cuando falta
 el entorno; no intentan conectarse a ella ni generan usuarios de demostración.
 
@@ -283,6 +294,9 @@ npx tsc --noEmit
 npm run build
 npm run db:validate
 npm run check:secrets
+npm run test:db
+# Requiere el build; inicia y detiene su propio servidor aislado:
+npm run test:credentials
 # Con un servidor local ya iniciado:
 npm run test:auth
 ```
@@ -291,46 +305,60 @@ Resultados comprobados el 14 de noviembre de 2026:
 
 | Comprobación | Resultado real |
 | --- | --- |
-| Validaciones, bcrypt, bloqueo, seguridad, sesión y compatibilidad Prisma | 34 pruebas aprobadas |
-| Integración PostgreSQL | Una prueba omitida por falta de TEST_DATABASE_URL |
+| Suite completa, incluida integración PostgreSQL y guard de aislamiento | 39 pruebas aprobadas; cero fallos y cero omisiones |
+| npm run test:db | Correcto contra la rama independiente; incluye un proceso nuevo y solicitudes concurrentes |
+| HTTP real de credenciales sobre Neon pooled | Diez comprobaciones correctas; fixtures eliminados al terminar |
 | ESLint | Sin errores ni advertencias |
 | TypeScript | Sin errores |
 | Build Next.js y vercel-build | Correctos, con rutas dinámicas, middleware y generación de Prisma |
 | Esquema y generación de Prisma | Correctos |
 | Conexiones reales pooled y directa de Neon | SELECT correcto en ambas; mismo destino y TLS |
-| Migraciones y tablas de aplicación | Pendientes de confirmación administrativa del proyecto |
+| Migraciones y tablas de aplicación | Migración completa y tres tablas verificadas en principal y pruebas |
 | HTTP local con la configuración actual | 22 comprobaciones seguras correctas |
 | Revisión de secretos locales en archivos publicables e historia | Sin coincidencias detectadas |
 
-Las comprobaciones HTTP incluyen acceso anónimo, rutas privadas, cookies inválidas y caducadas,
-CSRF, logout y registro inválido. Las pruebas de fallos sin PostgreSQL se ejecutan de forma
-aislada, sin utilizar la conexión real. No ejecuto registros de prueba sobre la base principal. Para comprobar el renderizado
-de las páginas privadas utilicé JWT efímeros firmados localmente: eso **no acredita** un login OAuth
-ni una autenticación real de usuario de base de datos.
+Separé dos verificaciones HTTP. `test:auth` revisa rutas, cookies inválidas o caducadas,
+CSRF, registro inválido y logout, sin registrar usuarios en la base principal. Sus JWT de
+fixture comprueban renderizado, pero no acreditan un login real.
+
+`test:credentials` inicia un servidor propio en un puerto libre con la conexión pooled de
+la rama aislada. Registra una cuenta real de prueba, verifica el hash, rechaza el duplicado,
+prueba cinco fallos y el bloqueo de quince minutos, adelanta únicamente el vencimiento del
+fixture y completa el login real de NextAuth. Verifica el JWT emitido, dashboard, perfil
+y logout. Limpia sus propios datos y detiene solo su servidor al terminar.
+
+La verificación final encontró cero usuarios de integración restantes en ambas bases.
+No probé interactivamente Google ni GitHub ni abrí un navegador.
 
 Implementé estilos para escritorio, tablet y móvil, foco de teclado, etiquetas, mensajes accesibles
 y menú responsive. Aún debo revisar visualmente esas interfaces en mi navegador; no considero
 esa revisión sustituida por las pruebas HTTP.
 
-### Pruebas reales de PostgreSQL pendientes
+### Pruebas PostgreSQL aisladas
 
-Para ejecutarlas necesito una rama Neon independiente `lab13-auth-test` y una base **exclusiva
-de pruebas**, distinta de la aplicación y llamada
-`lab13_auth_test` (o un nombre que empiece por `lab13` y termine en `_test`). Creo localmente
-`.env.test.local`, que está ignorado, con `TEST_DATABASE_URL` apuntando a su conexión directa.
+Dejé configurada `TEST_DATABASE_URL` en `.env.test.local`, con la conexión directa de
+`lab13_auth_test` en la rama `lab13-auth-test`. No publico esa URL ni su contraseña.
 
 ```bash
 npm run test:db
+npm run build
+npm run test:credentials
 ```
 
-El script valida el destino, rechaza una conexión igual a la aplicación, aplica las migraciones
-solo en esa base y prepara las pruebas de registro, correo duplicado, hash, contraseña incorrecta,
-quinto intento, concurrencia, bloqueo en un proceso nuevo y recuperación. Adelanta el vencimiento
-únicamente del registro de prueba para evitar esperar quince minutos. Finalmente elimina sus
-propios datos de prueba; no borra tablas ni usuarios ajenos.
+El guard exige un nombre de base que empiece por `lab13` y termine en `_test`. En Neon
+rechaza el endpoint de la aplicación incluso si cambia el nombre de la base o el rol,
+normaliza los hosts pooled para identificar la misma rama y exige conexión directa al migrar.
+Añadí pruebas específicas para evitar esas vías de confusión.
 
-Sin esa variable el comando termina con código 2 y explica que no ejecutó las pruebas. No ejecuté
-pruebas de escritura ni modifiqué datos de la base principal o de otros laboratorios.
+La suite aplica migraciones solo en la base de pruebas y comprueba registro, duplicados,
+bcrypt, contraseña correcta e incorrecta, quinto fallo, concurrencia, persistencia en otro
+proceso y recuperación. No espera quince minutos: modifica el vencimiento únicamente del
+fixture aislado. El auxiliar de reinicio utiliza una función asíncrona compatible con CommonJS.
+
+Cuando falta la variable, `test:db` termina con código 2 sin usar la base principal como
+sustituto. Las pruebas unitarias de ausencia de base de datos eliminan temporalmente esa
+variable solo dentro de su proceso aislado, por lo que también se ejecutan con Neon configurado.
+No borré tablas, no usé reset y no ejecuté pruebas destructivas sobre producción.
 
 ### Auditoría de dependencias
 
@@ -359,8 +387,8 @@ npm run vercel-build
 Este comando genera Prisma y compila Next.js; no crea recursos, no ejecuta migraciones de
 producción y no despliega. Antes de un despliegue posterior debo:
 
-1. Configurar Node 24, las variables de entorno y una base PostgreSQL persistente con pooling.
-2. Aplicar las migraciones revisadas con la conexión directa y verificar las pruebas de integración.
+1. Configurar Node 24 y copiar de forma privada las variables necesarias al entorno de Vercel.
+2. Apuntar a la base principal Neon ya migrada, usando pooling en DATABASE_URL y conexión directa en DIRECT_URL.
 3. Configurar `NEXTAUTH_URL` con mi dominio HTTPS final y conservar un secreto seguro y estable.
 4. Registrar los callbacks HTTPS de Google y GitHub en sus consolas; revisar sus usuarios de prueba.
 5. Configurar como build command `npm run vercel-build` e instalar también las dependencias de build.
@@ -368,7 +396,7 @@ producción y no despliega. Antes de un despliegue posterior debo:
 7. Revisar los avisos de dependencias antes de habilitar producción.
 
 No ejecuté un despliegue. La compilación local no demuestra todavía el funcionamiento remoto,
-las conexiones serverless ni la autenticación con proveedores reales tras los cambios.
+la configuración efectiva de Vercel ni los flujos interactivos OAuth tras los cambios.
 
 ## 13. Organización de Git
 
