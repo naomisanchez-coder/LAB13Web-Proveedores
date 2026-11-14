@@ -11,7 +11,11 @@
     "postinstall": "node scripts/prisma.mjs generate",
     "db:generate": "node scripts/prisma.mjs generate",
     "db:validate": "node scripts/prisma.mjs validate",
-    "db:migrate": "node scripts/prisma.mjs migrate deploy"
+    "db:migrate": "node scripts/prisma.mjs migrate deploy",
+    "test": "node scripts/test.mjs",
+    "test:db": "node scripts/test.mjs --db",
+    "vercel-build": "npm run db:generate && next build",
+    "check:secrets": "node scripts/check-secrets.mjs"
   },
   "dependencies": {
     "@prisma/client": "^6.19.3",

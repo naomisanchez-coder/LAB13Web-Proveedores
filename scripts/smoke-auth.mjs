@@ -27,12 +27,30 @@ for (const path of ["/dashboard", "/profile", "/dashboard/nested", "/profile/nes
 }
 const login = await fetch(base + "/signIn");
 assert.equal(login.status, 200);
-assert.match(await login.text(), /Continue with Google/);
+assert.match(await login.text(), /Bienvenido de nuevo/);
 passed("login público sin bucles");
 
+const registration = await request("/register");
+assert.equal(registration.status, 200);
+assert.match(await registration.text(), /Confirmar contraseña/);
+passed("registro accesible con confirmación de contraseña");
+const foreign = await fetch(base + "/api/register", { method: "POST", headers: {origin:"https://attacker.example"}, redirect:"manual" });
+assert.equal(foreign.status,403);
+passed("registro rechaza otro origen");
+const invalidRegistration = await fetch(base + "/api/register", { method: "POST", headers: {origin:base,"content-type":"application/json"},body:"{}" });
+assert.equal(invalidRegistration.status,400);
+passed("registro valida desde el servidor");
+if (!process.env.DATABASE_URL) {
+  const missingDb = await fetch(base + "/api/register", { method:"POST", headers:{origin:base,"content-type":"application/json"},body:JSON.stringify({name:"Prueba local",email:"smoke@example.test",password:"OnlyForSmoke123",confirmPassword:"OnlyForSmoke123"}) });
+  assert.equal(missingDb.status,503);
+  assert.doesNotMatch(await missingDb.text(),/Prisma|DATABASE_URL|passwordHash/);
+  passed("sin PostgreSQL no se simula un registro exitoso");
+}
 const providers = await (await request("/api/auth/providers")).json();
-assert.deepEqual(Object.keys(providers), ["google"]);
-passed("solo Google registrado");
+assert.equal(providers.google?.id, "google");
+assert.equal(providers.credentials?.id, "credentials");
+assert.equal(!!providers.github, !!(process.env.GITHUB_CLIENT_ID && process.env.GITHUB_CLIENT_SECRET));
+passed("Google y CredentialsProvider registrados; GitHub coincide con configuración");
 assert.deepEqual(await (await request("/api/auth/session")).json(), {});
 passed("sesión anónima vacía");
 
@@ -58,19 +76,31 @@ for (const path of ["/dashboard", "/profile"]) {
   assert.equal(response.status, 200);
   const html = await response.text();
   assert.match(html, /Usuario de prueba local/);
-  assert.match(html, /Cerrar Sesión/);
+  assert.match(html, /Cerrar sesión/);
   if (path === "/profile") {
     assert.match(html, /local-test@example.test/);
     assert.match(html, /lh3.googleusercontent.com/);
   }
   passed(`renderizado con JWT de prueba: ${path}`);
 }
+const noCsrf = await fetch(base + "/api/auth/callback/credentials", { method:"POST",redirect:"manual",headers:{"content-type":"application/x-www-form-urlencoded"},body:new URLSearchParams({email:"smoke@example.test",password:"OnlyForSmoke123",json:"true"}) });
+assert.ok(!noCsrf.headers.getSetCookie().some(cookie=>cookie.startsWith("next-auth.session-token=") && !cookie.includes("Max-Age=0")));
+passed("CredentialsProvider sin CSRF no crea sesión");
 const csrfResponse = await request("/api/auth/csrf", { cookie: sessionCookie });
 const { csrfToken } = await csrfResponse.json();
 assert.ok(csrfToken);
 const csrfCookie = csrfResponse.headers.getSetCookie()
   .find((cookie) => cookie.startsWith("next-auth.csrf-token="))?.split(";")[0];
 assert.ok(csrfCookie);
+if (!process.env.DATABASE_URL) {
+  const failedLogin = await fetch(base + "/api/auth/callback/credentials", {
+    method:"POST", redirect:"manual", headers:{cookie:csrfCookie,"content-type":"application/x-www-form-urlencoded"},
+    body:new URLSearchParams({csrfToken,email:"smoke@example.test",password:"OnlyForSmoke123",callbackUrl:base+"/dashboard",json:"true"})
+  });
+  assert.equal(failedLogin.status,401);
+  assert.ok(!failedLogin.headers.getSetCookie().some(cookie=>cookie.startsWith("next-auth.session-token=") && !cookie.includes("Max-Age=0")));
+  passed("CredentialsProvider con CSRF falla de forma cerrada sin PostgreSQL");
+}
 const logout = await fetch(base + "/api/auth/signout", {
   method: "POST", redirect: "manual",
   headers: { cookie: `${sessionCookie}; ${csrfCookie}`, "content-type": "application/x-www-form-urlencoded" },
@@ -83,4 +113,4 @@ assert.ok(logout.headers.getSetCookie().some((cookie) =>
 passed("signout con CSRF elimina cookie y vuelve al login");
 await denied("/dashboard");
 await denied("/profile");
-console.log(`${checks} comprobaciones HTTP correctas. Google OAuth real pendiente de credenciales.`);
+console.log(`${checks} comprobaciones HTTP correctas. Estas comprobaciones no prueban OAuth real ni operaciones PostgreSQL.`);

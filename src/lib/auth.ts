@@ -23,6 +23,11 @@ export const authOptions: NextAuthOptions = {
   ],
   session: { strategy: "jwt" },
   pages: { signIn: "/signIn", error: "/signIn" },
+  // Conservo códigos de diagnóstico, sin serializar metadatos que puedan contener tokens.
+  logger: {
+    error(code) { console.error("[auth]", code); },
+    warn(code) { console.warn("[auth]", code); },
+  },
   callbacks: {
     async jwt({ token, account, user }) {
       if (account && user) {
