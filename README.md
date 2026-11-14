@@ -50,3 +50,15 @@ las fuentes Geist, MyAuthApp, Dashboard, Profile, fotografía y cierre de sesió
 Se omite console.log(session) para no registrar datos personales. Se añade text-white
 al encabezado negro para asegurar legibilidad y lang="es" por el idioma del contenido.
 La configuración de imágenes Google se incorpora en la etapa 5, en el orden de la guía.
+
+## Etapa 4 — Páginas
+
+Se conservan los textos, clases Tailwind, fondos grises, tarjetas blancas y botones
+mostrados por el docente. Las páginas con JSX usan .tsx y la raíz redirige a /dashboard.
+Dashboard y Profile usan getServerSession(authOptions) y redirigen a /signIn si no hay usuario:
+la captura importa redirect pero no lo ejecuta; se completa la comprobación para evitar
+renderizar contenido privado incluso antes de incorporar el middleware.
+
+En el login se elimina redirect:false y useRouter: según la API de NextAuth v4,
+redirect:false solo aplica a Credentials y Email, no a OAuth. Google necesita navegar
+al proveedor; se conserva signIn("google", { callbackUrl: "/dashboard" }).
