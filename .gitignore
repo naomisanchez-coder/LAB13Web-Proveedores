@@ -14,3 +14,10 @@ next-env.d.ts
 # Los documentos académicos se conservan localmente, fuera de los commits.
 *.docx
 *.pdf
+# Datos locales y artefactos de pruebas
+*.db
+*.db-journal
+*.sqlite*
+.env.test*
+playwright-report/
+test-results/

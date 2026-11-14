@@ -1,0 +1,40 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider  = "postgresql"
+  url       = env("DATABASE_URL")
+  directUrl = env("DIRECT_URL")
+}
+
+// Solo cuentas locales. Las identidades OAuth mantienen su proveedor y no se fusionan por correo.
+model User {
+  id           String   @id @default(cuid())
+  name         String   @db.VarChar(100)
+  email        String   @unique @db.VarChar(254)
+  passwordHash String?  @map("password_hash") @db.VarChar(60)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@map("users")
+}
+
+// Incluye correos inexistentes mediante HMAC: mismo comportamiento ante intentos fallidos.
+model LoginAttempt {
+  key            String    @id @db.VarChar(64)
+  failedAttempts Int       @default(0) @map("failed_attempts")
+  lockedUntil    DateTime?  @map("locked_until")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@map("login_attempts")
+}
+
+model RequestLimit {
+  key       String   @id @db.VarChar(64)
+  hits      Int      @default(1)
+  expiresAt DateTime @map("expires_at")
+
+  @@index([expiresAt])
+  @@map("request_limits")
+}
