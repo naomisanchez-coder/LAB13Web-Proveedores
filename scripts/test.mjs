@@ -1,3 +1,4 @@
+import { validateTestDatabaseURL } from "./test-database-config.mjs";
 import { existsSync, readdirSync, readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { randomBytes } from "node:crypto";
@@ -12,10 +13,8 @@ env.NEXTAUTH_URL = 'http://localhost:3000';
 env.TEST_DATABASE_URL = testEnv.TEST_DATABASE_URL || env.TEST_DATABASE_URL || '';
 if (env.TEST_DATABASE_URL) {
   try {
-    const testUrl = new URL(env.TEST_DATABASE_URL);
-    const production = productionUrl ? new URL(productionUrl) : null;
-    if (!['postgresql:','postgres:'].includes(testUrl.protocol) || !/^\/lab13[\w-]*_test$/.test(testUrl.pathname) || (production && testUrl.host === production.host && testUrl.pathname === production.pathname)) throw new Error();
-  } catch { console.error('TEST_DATABASE_URL debe apuntar a una base PostgreSQL exclusiva llamada lab13..._test, distinta de la aplicación.'); process.exit(2); }
+    validateTestDatabaseURL(env.TEST_DATABASE_URL, productionUrl);
+  } catch { console.error("TEST_DATABASE_URL debe apuntar a una base exclusiva y, en Neon, a otra rama con conexión directa."); process.exit(2); }
   env.DATABASE_URL = env.TEST_DATABASE_URL;
   env.DIRECT_URL = env.TEST_DATABASE_URL;
   const migration = spawnSync(process.execPath,['scripts/prisma.mjs','migrate','deploy'], { env, stdio: 'pipe' });

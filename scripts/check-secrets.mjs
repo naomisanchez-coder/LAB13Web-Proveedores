@@ -1,9 +1,21 @@
 import { existsSync, readFileSync } from "node:fs";
 import { parseEnv } from "node:util";
 import { execFileSync } from "node:child_process";
-const values = existsSync('.env.local') ? parseEnv(readFileSync('.env.local','utf8')) : {};
-const keys = ['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GITHUB_CLIENT_ID','GITHUB_CLIENT_SECRET','NEXTAUTH_SECRET','DATABASE_URL','DIRECT_URL'];
-const secrets = keys.map(key=>values[key]).filter(value=>value && value.length>=8);
+const keys = ['GOOGLE_CLIENT_ID','GOOGLE_CLIENT_SECRET','GITHUB_CLIENT_ID','GITHUB_CLIENT_SECRET','NEXTAUTH_SECRET','DATABASE_URL','DIRECT_URL','TEST_DATABASE_URL'];
+const privateValues = new Set();
+for (const file of ['.env.local', '.env.test.local']) {
+  if (!existsSync(file)) continue;
+  const values = parseEnv(readFileSync(file, 'utf8'));
+  for (const key of keys) {
+    const value = values[key];
+    if (value && value.length >= 8) privateValues.add(value);
+    if (key.endsWith('_URL') && value) {
+      try { const password = decodeURIComponent(new URL(value).password); if (password.length >= 8) privateValues.add(password); }
+      catch { /* No imprimo valores inválidos ni fragmentos de conexión. */ }
+    }
+  }
+}
+const secrets = [...privateValues];
 const git = args=>execFileSync('git',args,{encoding:'utf8',maxBuffer:32*1024*1024});
 const files = [...new Set((git(['ls-files'])+'\n'+git(['ls-files','--others','--exclude-standard'])).trim().split('\n').filter(Boolean))];
 const history = git(['log','--all','-p','--format=']);
