@@ -19,8 +19,9 @@ ficticios. Verifiqué las tres tablas y consultas Prisma reales.
 En la rama `lab13-auth-test`, base `lab13_auth_test`, comprobé registro, duplicados, bcrypt,
 credenciales, JWT, bloqueo persistente, concurrencia y logout. La suite completa aprobó
 39 pruebas sin omisiones y el flujo HTTP real aprobó diez comprobaciones adicionales.
-Google conserva su configuración; sus flujos interactivos quedan para la comprobación manual.
-GitHub todavía requiere sus credenciales OAuth. No ejecuté un despliegue.
+Google y GitHub ya reconocen sus credenciales reales del entorno local. Verifiqué los tres
+proveedores de NextAuth sin mostrar secretos; sus flujos OAuth completos quedan para la prueba
+manual en el navegador. No ejecuté un despliegue.
 
 ## 2. Objetivos
 
@@ -60,7 +61,7 @@ Fijé Node 24 en `engines` y mantuve la misma versión de Prisma y su cliente.
 | Registro | Comprobé por HTTP el registro persistente, la normalización, el hash bcrypt y la prevención de duplicados en la base aislada. |
 | Credenciales | Comprobé el login real de NextAuth contra Neon pooled, la sesión JWT y el acceso a dashboard y perfil. También verifiqué el rechazo cuando falta la base de datos. |
 | Bloqueo | Verifiqué cinco fallos, quince minutos de bloqueo, persistencia en otro proceso, concurrencia, recuperación y reinicio del contador. |
-| GitHub OAuth | Preparé GitHubProvider, callback y avatar; se habilita únicamente con sus dos variables reales. |
+| GitHub OAuth | Reconocí sus dos variables reales y confirmé su presencia en NextAuth; el flujo interactivo queda pendiente de comprobación manual. |
 | Rutas privadas | Conservé middleware y comprobación de sesión en cada página; verifiqué el rechazo sin sesión. |
 | Dashboard y perfil | Mostré datos reales de sesión, método verificable y avatar con alternativa de iniciales. |
 | Navegación | Incorporé menú móvil, enlace activo y cierre de sesión con estado de carga. |
@@ -170,6 +171,9 @@ http://localhost:3000/api/auth/callback/github
 Completo `GITHUB_CLIENT_ID` y `GITHUB_CLIENT_SECRET` en `.env.local` y reinicio.
 Mientras falte alguno, el proveedor no se registra y el botón aparece deshabilitado.
 La autorización de GitHub CLI para publicar commits es independiente de esta OAuth App.
+En este entorno ya configuré ambas variables y comprobé que el proveedor utiliza exactamente
+esos valores, sin imprimirlos. Mantengo el callback local y no doy por probado el consentimiento
+OAuth hasta completarlo manualmente.
 Para un dominio de producción preparo una aplicación OAuth con su callback correspondiente.
 
 ## 9. Persistencia y seguridad
@@ -397,6 +401,45 @@ producción y no despliega. Antes de un despliegue posterior debo:
 
 No ejecuté un despliegue. La compilación local no demuestra todavía el funcionamiento remoto,
 la configuración efectiva de Vercel ni los flujos interactivos OAuth tras los cambios.
+
+### Configuración exacta del despliegue manual
+
+Cuando importe este repositorio en Vercel, seleccionaré `main`, preset `Next.js`, raíz del
+repositorio y Node.js `24.x`. Mantendré el directorio de salida predeterminado del framework,
+usando `npm install` como instalación y `npm run vercel-build` como compilación.
+`postinstall` y `vercel-build` generan Prisma Client; ninguno ejecuta migraciones de producción.
+
+Configuraré estas ocho variables en el entorno **Production** de Vercel:
+
+| Variable | Valor que introduciré de forma privada |
+| --- | --- |
+| GOOGLE_CLIENT_ID | ID de mi cliente OAuth de Google |
+| GOOGLE_CLIENT_SECRET | Secreto de ese cliente |
+| GITHUB_CLIENT_ID | ID de la OAuth App de GitHub destinada a producción |
+| GITHUB_CLIENT_SECRET | Secreto de esa OAuth App |
+| DATABASE_URL | Conexión pooled de la base principal Neon |
+| DIRECT_URL | Conexión directa de la misma base principal |
+| NEXTAUTH_SECRET | Secreto seguro, fijo y estable para producción |
+| NEXTAUTH_URL | Origen HTTPS definitivo que Vercel me asigne o el dominio que vincule |
+
+No copiaré `TEST_DATABASE_URL` a producción ni expondré estas variables con el prefijo
+`NEXT_PUBLIC_`. No modificaré los archivos locales ni cambiaré el secreto en cada despliegue.
+Usaré credenciales y destinos independientes si después habilito un entorno Preview.
+
+Todavía no existe un dominio definitivo. Cuando lo tenga, usaré `https://<DOMINIO_REAL>`
+como NEXTAUTH_URL y origen de Google, con estos callbacks exactos:
+
+- Google: `https://<DOMINIO_REAL>/api/auth/callback/google`.
+- GitHub: `https://<DOMINIO_REAL>/api/auth/callback/github`.
+
+`<DOMINIO_REAL>` es un marcador; no es un dominio existente. Conservaré el origen local
+`http://localhost:3000` y sus callbacks locales. Para GitHub prepararé una OAuth App de
+producción con su callback HTTPS, sin reemplazar el callback del cliente local.
+
+Si Vercel necesita una primera publicación para asignar el dominio, completaré después
+NEXTAUTH_URL y los callbacks y ejecutaré un nuevo despliegue manual. Los cambios de variables
+se aplican al despliegue siguiente. Finalmente comprobaré los tres accesos, registro, bloqueo,
+logout y adaptación móvil en el dominio HTTPS.
 
 ## 13. Organización de Git
 
