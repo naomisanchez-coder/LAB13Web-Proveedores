@@ -1,6 +1,7 @@
 "use client";
 
 import { signIn } from "next-auth/react";
+import Link from "next/link";
 import { FaGoogle } from "react-icons/fa";
 
 export default function LoginPage() {
@@ -19,6 +20,7 @@ export default function LoginPage() {
           <FaGoogle />
           Continue with Google
         </button>
+        <Link href="/register" className="block mt-6 text-center underline">Crear una cuenta</Link>
       </div>
     </div>
   );
