@@ -42,3 +42,11 @@ NEXTAUTH_SECRET ya se generó mediante crypto.randomBytes(32) y nunca se imprime
 No copiar las credenciales ni el secreto que aparecen en las capturas docentes.
 Reiniciar npm run dev después de cambiar el entorno. No publicar .env.local ni pegarlo en el chat.
 .env.example contiene únicamente placeholders.
+
+## Etapa 3 — Sesión y navegación
+
+Se conservan LogoutButton y SessionProvider de la guía, el layout de servidor,
+las fuentes Geist, MyAuthApp, Dashboard, Profile, fotografía y cierre de sesión.
+Se omite console.log(session) para no registrar datos personales. Se añade text-white
+al encabezado negro para asegurar legibilidad y lang="es" por el idioma del contenido.
+La configuración de imágenes Google se incorpora en la etapa 5, en el orden de la guía.
